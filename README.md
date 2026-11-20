@@ -53,7 +53,8 @@ answered `--version`.
 ## Download
 
 ```bash
-gh release download agent-latest -R NixPort/opencode-repack -p 'opencode-nx2a-*-arm64.tar.gz'
+gh release download agent-latest -R NixPort/opencode-repack -p 'opencode-nx2a-*-arm64.tar.gz*'
+sha256sum -c opencode-nx2a-*-arm64.tar.gz.sha256
 ```
 
 The releases:

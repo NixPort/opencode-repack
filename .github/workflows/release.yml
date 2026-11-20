@@ -116,7 +116,8 @@ jobs:
             --notes "The upstream opencode binary with its interpreter pointed at the nixport rootfs. It runs inside the app's folder, with the rootfs's loader and libraries." \
             "${{ steps.build.outputs.path }}#$asset"
 
-          echo "sha256  ${{ steps.build.outputs.sha256 }}  $asset" > "${{ steps.build.outputs.path }}.sha256"
+          # The checksum file is in the format both sha256sum and shasum read.
+          echo "${{ steps.build.outputs.sha256 }}  $asset" > "${{ steps.build.outputs.path }}.sha256"
           gh release upload "$tag" "${{ steps.build.outputs.path }}.sha256#${asset}.sha256" --clobber
 
       - name: Publish the rolling release
