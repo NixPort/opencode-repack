@@ -1,0 +1,38 @@
+# The upstream sources for the repack pipeline.
+#
+# Each recipe says where a program comes from and what it should become. The
+# pipeline downloads the upstream asset, makes it runnable in the nixport
+# rootfs (the interpreter points at the loader the app keeps) and publishes
+# the result as a release asset.
+#
+# Fields:
+#   name        the output stem; the asset is published as <name>-nx2a-<version>-<arch>.tar.gz
+#   repo        GitHub repository to take the release from (owner/name)
+#   version     the upstream release tag to build; "latest" asks the upstream
+#   asset       the upstream asset name to download
+#   arch        the architecture of that asset
+#   binary      the file name of the program inside the upstream asset
+#   interp      the ELF interpreter to write: the loader the app keeps at
+#   sha256      optional; the checksum of the upstream asset, when pinned
+#   title       optional; the human-readable title of the program
+#
+# The sha256 field is what keeps the pipeline honest: the download is verified
+# before anything is unpacked, and a mismatch fails the build rather than
+# producing a package from bytes nobody checked. A version that is not the
+# pinned one (the "latest" the daily run asks for) is built without the pin,
+# and the checksum it got is written into the package's provenance.
+#
+# The interp field is the app's own rootfs: /data/data/<package>/files/rootfs.
+# The nixport app keeps its rootfs elsewhere (ro.cobrabm.fexdroid), so a
+# package for that app carries that path instead — the pipeline changes
+# nothing else about the binary.
+
+- name: opencode
+  repo: anomalyco/opencode
+  version: v1.19.6
+  asset: opencode-linux-arm64.tar.gz
+  arch: arm64
+  binary: opencode
+  interp: /data/data/com.nx.android/files/rootfs/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1
+  sha256: 5b68c1f4c5e75b4134e664cc8f36d634d64208d4fcfe5bcf3b48bab699c2dbac
+  title: opencode

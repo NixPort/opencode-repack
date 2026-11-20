@@ -1,0 +1,136 @@
+name: repack
+
+# Builds the repacked opencode and publishes it as a release asset.
+#
+# The upstream opencode is a Linux aarch64 binary whose interpreter is
+# /lib/ld-linux-aarch64.so.1. Android has no /lib, and the nixport guest is
+# not a chroot, so the program has to be started through the loader the app
+# keeps at: the repack points the interpreter there and checks that every
+# library the program wants is in the rootfs (see scripts/build.sh).
+#
+# The build runs on an arm64 runner, so the repacked program is started for
+# real with the rootfs's loader and libraries before it is published.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'the upstream release tag to build ("latest" for the newest one)'
+        required: false
+        default: ''
+  schedule:
+    # Every day at 04:17 UTC. Upstream releases are not on a schedule, so a
+    # daily poll is what keeps the published asset close to current without
+    # hammering the upstream servers.
+    - cron: "17 4 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        recipe: [opencode]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the rootfs
+        id: payload
+        run: |
+          set -euo pipefail
+          base=https://github.com/NixPort/nixport-rootfs/releases/download/payload-latest
+          curl -sSL -f -o payload-arm64.tar.gz "$base/payload-arm64.tar.gz"
+          curl -sSL -f -o payload.sha256 "$base/payload-arm64.tar.gz.sha256"
+          echo "key=rootfs-$(cut -d' ' -f1 payload.sha256)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: payload-arm64.tar.gz
+          key: ${{ steps.payload.outputs.key }}
+
+      - name: Unpack the rootfs
+        run: |
+          set -euo pipefail
+          tar xzf payload-arm64.tar.gz          # the payload holds rootfs-arm64.tar
+          mkdir -p rootfs
+          tar xf rootfs-arm64.tar -C rootfs
+          ls rootfs/usr/lib/aarch64-linux-gnu | head
+
+      - name: Put the rootfs where the app keeps it
+        run: |
+          set -euo pipefail
+          # The program asks for the loader at the app's own path. On the
+          # runner that path does not exist, so it is made: the app's rootfs
+          # stands there, and the program starts with it.
+          sudo mkdir -p /data/data/com.nx.android/files
+          sudo ln -sfn "$PWD/rootfs" /data/data/com.nx.android/files/rootfs
+          ls -l /data/data/com.nx.android/files/rootfs/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1
+
+      - name: Build the package
+        id: build
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          args=(recipes/${{ matrix.recipe }}.yml --outdir out --rootfs rootfs)
+          [ -n "$VERSION" ] && args+=(--version "$VERSION")
+          # The script prints "<path> <sha256>" per built asset; the release
+          # step needs both, so hand them over as outputs.
+          mapfile -t lines < <(scripts/build.sh "${args[@]}")
+          for line in "${lines[@]}"; do
+            path=${line% *}
+            sha=${line##* }
+            echo "path=$path" >> "$GITHUB_OUTPUT"
+            echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Check the package
+        run: |
+          set -euo pipefail
+          ls -la out/
+          scripts/check.sh out/*.tar.gz --rootfs rootfs
+
+      - name: Publish the release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECIPE: ${{ matrix.recipe }}
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^[[:space:]]*version:[[:space:]]*//p' "recipes/$RECIPE.yml" | head -1)
+          asset=$(basename "${{ steps.build.outputs.path }}")
+          tag="repack-${RECIPE}-${version}"
+
+          # The tag moves with every upstream version, so replace it when it
+          # is already there.
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release delete "$tag" --yes --cleanup-tag
+          fi
+          gh release create "$tag" \
+            --title "${RECIPE} ${version} (repacked)" \
+            --notes "The upstream opencode binary with its interpreter pointed at the nixport rootfs. It runs inside the app's folder, with the rootfs's loader and libraries." \
+            "${{ steps.build.outputs.path }}#$asset"
+
+          echo "sha256  ${{ steps.build.outputs.sha256 }}  $asset" > "${{ steps.build.outputs.path }}.sha256"
+          gh release upload "$tag" "${{ steps.build.outputs.path }}.sha256#${asset}.sha256" --clobber
+
+      - name: Publish the rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          asset=$(basename "${{ steps.build.outputs.path }}")
+          # The rolling tag is where the packages are fetched from, the way
+          # the rootfs payload is fetched from payload-latest.
+          if gh release view agent-latest >/dev/null 2>&1; then
+            gh release delete agent-latest --yes --cleanup-tag
+          fi
+          gh release create agent-latest \
+            --title "opencode (repacked, latest)" \
+            --notes "The newest repacked opencode: the upstream binary with its interpreter pointed at the nixport rootfs. The pinned versions are in the other releases." \
+            --latest \
+            "${{ steps.build.outputs.path }}#$asset" \
+            "${{ steps.build.outputs.path }}.sha256#$asset.sha256"

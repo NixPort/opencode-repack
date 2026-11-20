@@ -1,0 +1,5 @@
+# The build's output
+out/
+
+# The scratch of the interpreter patch
+*.interp-tmp

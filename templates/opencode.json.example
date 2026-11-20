@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "ark/doubao-seed",
+  "provider": {
+    "ark": {
+      "name": "Volcengine Ark",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://ark.cn-beijing.volces.com/api/v3/v1",
+        "apiKey": "{env:ARK_API_KEY}"
+      },
+      "models": {
+        "doubao-seed": { "name": "Doubao Seed" }
+      }
+    }
+  }
+}
