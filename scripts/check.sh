@@ -26,7 +26,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 tar xzf "$PKG" -C "$work"
 
-dir=$(find "$work" -mindepth 1 -maxdepth 1 -type d | head -1)
+dir=$(find "$work" -mindepth 1 -maxdepth 1 -type d -print -quit)
 [ -n "$dir" ] || { echo "the package has no folder in it" >&2; exit 1; }
 
 for f in opencode opencode.json.example install.md PROVENANCE.md; do

@@ -57,7 +57,9 @@ jobs:
           tar xzf payload-arm64.tar.gz          # the payload holds rootfs-arm64.tar
           mkdir -p rootfs
           tar xf rootfs-arm64.tar -C rootfs
-          ls rootfs/usr/lib/aarch64-linux-gnu | head
+          ls rootfs/usr/lib/aarch64-linux-gnu > libs.txt
+          head -5 libs.txt
+          echo "the rootfs holds $(wc -l < libs.txt) libraries"
 
       - name: Put the rootfs where the app keeps it
         run: |

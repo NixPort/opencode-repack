@@ -93,7 +93,7 @@ fi
 log "unpacking"
 mkdir -p "$work/unpack"
 tar xzf "$work/upstream.tar.gz" -C "$work/unpack"
-program=$(find "$work/unpack" -type f -name "$binary" | head -1)
+program=$(find "$work/unpack" -type f -name "$binary" -print -quit)
 [ -n "$program" ] || { echo "the archive has no $binary in it" >&2; exit 1; }
 chmod +x "$program"
 
