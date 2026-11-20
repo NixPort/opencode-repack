@@ -111,7 +111,11 @@ if [ "$host" = "aarch64" ] || [ "$host" = "arm64" ]; then
     loader="$interp"
     if [ -e "$loader" ]; then
         log "smoke test"
-        LD_LIBRARY_PATH="$ROOTFS/usr/lib/aarch64-linux-gnu:$ROOTFS/usr/lib" "$program" --version
+        # The program's own words go into the log: a package is only worth
+        # publishing when the repacked program answers for itself.
+        out=$(LD_LIBRARY_PATH="$ROOTFS/usr/lib/aarch64-linux-gnu:$ROOTFS/usr/lib" "$program" --version 2>&1) ||
+            { echo "the repacked program did not start: $out" >&2; exit 1; }
+        log "the program says: $out"
     else
         log "the loader is not at $loader here: the smoke test is skipped"
     fi
